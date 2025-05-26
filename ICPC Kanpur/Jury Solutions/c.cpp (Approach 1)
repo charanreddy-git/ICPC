@@ -1,0 +1,220 @@
+#pragma GCC optimize("Ofast")
+ 
+#include <bits/stdc++.h>   
+#include <ext/pb_ds/tree_policy.hpp>
+#include <ext/pb_ds/assoc_container.hpp>
+using namespace __gnu_pbds;   
+using namespace std;
+#define ll long long
+#define ld long double
+#define nline "\n"
+#define f first
+#define s second
+const ll INF_MUL=1e13;
+const ll INF_ADD=1e18;
+#define sz(x) (ll)x.size()
+#define vl vector<ll>
+#define all(x) x.begin(),x.end()
+#define rall(x) x.rbegin(),x.rend() 
+mt19937 rng(chrono::steady_clock::now().time_since_epoch().count());
+typedef tree<ll, null_type, less<ll>, rb_tree_tag, tree_order_statistics_node_update> ordered_set;
+typedef tree<pair<ll,ll>, null_type, less<pair<ll,ll>>, rb_tree_tag, tree_order_statistics_node_update> ordered_pset;
+//--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------     
+const ll MOD=998244353;
+const ll MAX=500500;
+class ST {
+public:
+    vector<pair<ll,ll>> segs;
+    ll size = 0;
+    pair<ll,ll> ID = {-INF_ADD, 1};
+ 
+    ST (ll sz) {
+        segs.assign(2 * sz, ID);
+        size = sz;  
+    }   
+   
+    pair<ll,ll> comb(pair<ll,ll> a, pair<ll,ll> b) {
+        return max(a, b);
+    }
+ 
+    void upd(ll idx, ll val) {
+        pair<ll,ll> use = {val, idx};
+        segs[idx += size] = use;
+        for(idx /= 2; idx; idx /= 2) segs[idx] = comb(segs[2 * idx], segs[2 * idx + 1]);
+    }
+ 
+    pair<ll,ll> query(ll l, ll r) {
+        pair<ll,ll> lans = ID, rans = ID;
+        for(l += size, r += size + 1; l < r; l /= 2, r /= 2) {
+            if(l & 1) lans = comb(lans, segs[l++]);
+            if(r & 1) rans = comb(segs[--r], rans);
+        }
+        return comb(lans, rans);
+    }
+}; 
+struct Lazy{
+    vector<ll> segt,lazy;
+    ll n,ID;
+    Lazy(ll n){
+        this->n=n;
+        ID=INF_ADD;
+        segt.resize(4*n,ID);
+        lazy.resize(4*n,0);
+    }
+    ll merge(ll l,ll r){
+        return min(l,r);
+    }
+    void push(ll v){
+        segt[2*v]+=lazy[v];
+        segt[2*v+1]+=lazy[v];
+        lazy[2*v]+=lazy[v];
+        lazy[2*v+1]+=lazy[v];
+        lazy[v]=0;
+    }
+    void set_upd(ll pos,ll val){
+        set_upd(1,1,n,pos,val);
+    }
+    void set_upd(ll v,ll l,ll r,ll pos,ll val){
+        if(l==r){
+            segt[v]=val;
+        }
+        else{
+            push(v);
+            ll m=(l+r)/2;
+            if(pos<=m){
+                set_upd(2*v,l,m,pos,val);
+            }
+            else{
+                set_upd(2*v+1,m+1,r,pos,val);
+            }
+            segt[v]=merge(segt[2*v],segt[2*v+1]);
+        }
+    }
+    void add_upd(ll l,ll r,ll delta){
+        add_upd(1,1,n,l,r,delta);
+    }
+    void add_upd(ll v,ll tl,ll tr,ll l,ll r,ll delta){
+        if(l>r){
+            return;
+        }
+        if((tl==l) and (tr==r)){
+            segt[v]+=delta;
+            lazy[v]+=delta;
+        }
+        else{
+            push(v);
+            ll tm=(tl+tr)/2;
+            add_upd(2*v,tl,tm,l,min(r,tm),delta);
+            add_upd(2*v+1,tm+1,tr,max(l,tm+1),r,delta);
+            segt[v]=merge(segt[2*v],segt[2*v+1]);
+        }
+    }
+    ll query(ll l,ll r){
+        return query(1,1,n,l,r);
+    }
+    ll query(ll v,ll l,ll r,ll ql,ll qr){
+        if(ql>qr){
+            return ID;
+        }
+        if((l==ql) and (r==qr)){
+            return segt[v];
+        }
+        push(v);
+        ll m=(l+r)/2;
+        return merge(query(2*v,l,m,ql,min(m,qr)),query(2*v+1,m+1,r,max(m+1,ql),qr));
+    }
+};
+ll n;
+vector<ll> a(MAX),ans(MAX);
+ST nax(MAX);
+vector<ll> till_left(MAX);
+vector<ll> pref_zero(MAX);
+void solve(ll l,ll r){
+  if(l>r){
+    return;
+  }
+  auto cur=nax.query(l,r);
+  ll val=cur.f,pos=cur.s;
+  if(pos-l<r-pos){
+    for(ll x=l;x<=pos;x++){
+      ll y=x+val;
+      if(y>r){
+        continue;
+      }
+      if(till_left[y]<=x){
+        if(pref_zero[y]!=pref_zero[x-1]){
+          ans[val+1]=1;
+        }
+      }
+    }
+  }
+  else{
+    for(ll y=pos;y<=r;y++){
+      ll x=y-val;
+      if(x<l){
+        continue;
+      }
+      if(till_left[y]<=x){
+        if(pref_zero[y]!=pref_zero[x-1]){
+          ans[val+1]=1;
+        }
+      }
+    }
+  }
+  solve(l,pos-1);
+  solve(pos+1,r);
+}
+void solve(){
+  ll n; cin>>n;
+  vector<ll> a(n+5);
+  vector<pair<ll,ll>> track;
+  for(ll i=1;i<=n;i++){
+    cin>>a[i];
+    track.push_back({a[i],i});
+    nax.upd(i,a[i]);
+    ans[i]=0;
+    pref_zero[i]=pref_zero[i-1]+(a[i]==0);
+  }
+  vector<ll> pos(n+5,-1);
+  sort(all(track));
+  ll now=1;
+  for(auto it:track){
+    pos[it.s]=now++;
+  }
+  Lazy get_nin(n+5);
+  ll till=0;
+  ordered_set okay;
+  for(ll i=1;i<=n;i++){
+    ll ind=pos[i];
+    ll use=a[i]+1-okay.order_of_key(ind);
+    get_nin.set_upd(ind,use);
+    get_nin.add_upd(ind,n,-1);
+    okay.insert(ind);
+    while(get_nin.query(1,n)<=-1){
+      till++;
+      ind=pos[till];
+      okay.erase(ind);
+      get_nin.add_upd(ind,n,1);
+      get_nin.set_upd(ind,INF_ADD);
+    }
+    till_left[i]=till+1;
+  }
+  solve(1,n);
+  for(ll i=1;i<=n;i++){
+    cout<<ans[i];
+  }
+  cout<<nline;
+  return;
+}
+int main()                                                                                 
+{         
+  ios_base::sync_with_stdio(false);                         
+  cin.tie(NULL);                             
+  ll test_cases=1;
+  cin>>test_cases;
+  while(test_cases--){
+    solve();
+  }
+  cout<<fixed<<setprecision(15); 
+  cerr<<"Time:"<<1000*((double)clock())/(double)CLOCKS_PER_SEC<<"ms\n"; 
+} 

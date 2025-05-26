@@ -1,0 +1,223 @@
+#include <bits/stdc++.h>
+using namespace std;
+#define int long long
+#define INF (int)1e18
+
+mt19937_64 RNG(chrono::steady_clock::now().time_since_epoch().count());
+
+const int N = 5e5 + 69;
+int seg[4 * N], lazy[4 * N];
+
+void build(int l, int r, int pos){
+    lazy[pos] = 0;
+    if (l == r){
+        seg[pos] = -l - 1;
+        return;
+    }
+    
+    int mid = (l + r) / 2;
+    build(l, mid, pos * 2);
+    build(mid + 1, r, pos * 2 + 1);
+    
+    seg[pos] = max(seg[pos * 2], seg[pos * 2 + 1]);
+}
+
+void updlz(int l, int r, int pos){
+    seg[pos] += lazy[pos];
+    if (l != r){
+        lazy[pos * 2] += lazy[pos];
+        lazy[pos * 2 + 1] += lazy[pos];
+    }
+    lazy[pos] = 0;
+}
+
+void upd(int l, int r, int pos, int ql, int qr, int x){
+    if (lazy[pos]) updlz(l, r, pos);
+    if (l >= ql && r <= qr){
+        lazy[pos] += x;
+        updlz(l, r, pos);
+    } else if (l > qr || r < ql){
+        return;
+    } else {
+        int mid = (l + r) / 2;
+        upd(l, mid, pos * 2, ql, qr, x);
+        upd(mid + 1, r, pos * 2 + 1, ql, qr, x);
+        
+        seg[pos] = max(seg[pos * 2], seg[pos * 2 + 1]);
+    }
+}
+
+void Solve() 
+{
+    // use 2 pointers to get the maximum right endpoint 
+    // store lazy segtree 
+    
+    int n; cin >> n;
+    
+    vector <int> a(n);
+    for (auto &x : a) cin >> x;
+    
+    vector <int> max_r(n);
+    int p = 0;
+    
+    build(0, n, 1);
+    
+    for (int i = 0; i < n; i++){
+        while (p < n && seg[1] <= 0){
+            upd(0, n, 1, a[p], n, 1);
+            p++;
+        }
+        
+        if (seg[1] <= 0){
+            max_r[i] = n - 1;
+        } else {
+            max_r[i] = p - 2;
+        }
+        upd(0, n, 1, a[i], n, -1);
+    }
+    
+    vector <int> min_r(n);
+    int cnt = 0;
+    p = -1;
+    
+    for (int i = 0; i < n; i++){
+        while (p + 1 < n && cnt == 0){
+            p++;
+            if (a[p] == 0){
+                cnt++;
+            }
+        }
+        
+        if (cnt){
+            min_r[i] = p;
+        } else {
+            min_r[i] = n;
+        }
+        
+        if (a[i] == 0){
+            cnt--;
+        }
+    }
+    
+    vector <bool> ans(n, false);
+    // sweepline on l, maintain stack of prefix max, some range gets affected, delete them from stack incase ngl 
+    vector <int> nxg(n, n);
+    {
+        stack <pair<int, int>> st;
+        for (int i = 0; i < n; i++){
+            while (!st.empty() && st.top().first < a[i]){
+                nxg[st.top().second] = i;
+                st.pop();
+            }
+            
+            st.push({a[i], i});
+        }
+    }
+    
+    // maintain deque 
+    // ok we need to now be smart 
+    // a guy requires l + a[x] to be >= i and < nxg[i] 
+    // i - a[x] <= l < nxg[i] - a[x]
+    // add the guy after nxg[i] - a[x], remove at i - a[x]
+    // also require that l + a[i] <= max_r[l] 
+    vector<vector<int>> add(n), era(n);
+    deque <int> deq;
+    set <int> active;
+    set <pair<int, int>> good; 
+    for (int i = 0; i < n; i++){
+        int L = i - a[i];
+        int R = nxg[i] - a[i];
+        
+        if (R < 0) continue;
+        if (R >= n){
+            good.insert({a[i], i});
+        } else {
+            add[R].push_back(i);
+        }
+        if (L >= 0){
+            era[L].push_back(i);
+        }
+    }
+    
+    for (int l = n - 1; l >= 0; l--){
+        // pop non max'es 
+        while (!deq.empty() && a[l] >= a[deq.back()]){
+            active.erase(deq.back());
+            good.erase({a[deq.back()], deq.back()});
+            deq.pop_back();
+        }
+        deq.push_back(l);
+        active.insert(l);
+        // need to check if l is actually in good interval 
+        int L = l - a[l];
+        int R = nxg[l] - a[l];
+        if (L <= l && l < R){
+            active.erase(l);
+            good.insert({a[l], l});
+        }
+        
+        auto check = [&](int i){
+            int len = a[i] + 1;
+            int rg = l + len - 1;
+            
+            if (rg >= min_r[l] && rg <= max_r[l] && rg >= i && rg < nxg[i]){
+                ans[len - 1] = true;
+                return true;
+            }
+            return false;
+        };
+        
+        // check off people in good >= min_r[l] and <= max_r[l], maxr is satisfied automatically
+        // this is in increasing order, abuse that? 
+        // we have a list of i's, we need to check l + a[i] >= min_r[l] and max_r[l] 
+        // min_r[l] <= l + a[i] <= max_r[l] 
+        // binary search the positions 
+        
+        auto id = good.lower_bound(make_pair(min_r[l] - l, -1));
+        while (id != good.end() && ((*id).first) <= max_r[l] - l){
+            if (!check((*id).second)){
+                assert(false);
+            }
+            good.erase(*id);
+            id = good.lower_bound(make_pair(min_r[l] - l, -1));
+        }
+        
+        for (int ind : add[l]){
+            if (active.find(ind) != active.end()){
+                active.erase(ind);
+                good.insert({a[ind], ind});
+            }
+        }
+        
+        for (int ind : era[l]){
+            good.erase({a[ind], ind});
+            active.erase(ind);
+        }
+    }
+    
+    for (auto x : ans){
+        cout << x;
+    }
+    cout << "\n";
+}
+
+int32_t main() 
+{
+    auto begin = std::chrono::high_resolution_clock::now();
+    ios_base::sync_with_stdio(0);
+    cin.tie(0);
+    int t = 1;
+    // freopen("in",  "r", stdin);
+    // freopen("out", "w", stdout);
+    
+    cin >> t;
+    for(int i = 1; i <= t; i++) 
+    {
+        //cout << "Case #" << i << ": ";
+        Solve();
+    }
+    auto end = std::chrono::high_resolution_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin);
+    cerr << "Time measured: " << elapsed.count() * 1e-9 << " seconds.\n"; 
+    return 0;
+}

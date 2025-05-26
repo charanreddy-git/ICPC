@@ -1,0 +1,170 @@
+#include <bits/stdc++.h>
+using namespace std;
+#define int long long
+#define INF (int)1e18
+
+mt19937_64 RNG(chrono::steady_clock::now().time_since_epoch().count());
+
+struct ufds{
+    vector <int> root, sz;
+    int n;
+ 
+    void init(int nn){
+        n = nn;
+        root.resize(n + 1);
+        sz.resize(n + 1, 1);
+        for (int i = 1; i <= n; i++) root[i] = i;
+    }
+ 
+    int find(int x){
+        if (root[x] == x) return x;
+        return root[x] = find(root[x]);
+    }
+ 
+    bool unite(int x, int y){
+        x = find(x); y = find(y);
+        if (x == y) return false;
+ 
+        if (sz[y] > sz[x]) swap(x, y);
+        sz[x] += sz[y];
+        root[y] = x;
+        return true;
+    }
+    
+    int get_sz(int x){
+        return sz[find(x)];
+    }
+};
+
+void Solve() 
+{
+    // score is essentially just subtracting elements from left and right which are unique 
+    // leave out completely unique subarrays for now, for others, we can see that i gets deleted iff nx[i] > r, and all of l...i - 1 get deleted too 
+    // so for fixed r and a given l (l <= r), calculate the number of nx[i] > r starting from l 
+    // this means that consider sequences of 1s, then we delete seq lengths C2 stuff 
+    // when r -> r - 1, r gets removed as a possible l-value, and at most one index satisfying nx[i] = r gets added 
+    
+    int n; cin >> n;
+    
+    vector <int> a(n + 1);
+    for (int i = 1; i <= n; i++){
+        cin >> a[i];
+    }
+    
+    int ans = 0;
+    for (int len = 1; len <= n; len++){
+        int num = (n + 1 - len);
+        ans += num * len;
+    }
+    // cout << ans << "\n";
+    
+    for (int _ = 0; _ < 2; _++){
+        vector <int> nx(n + 1, n + 1);
+        vector <int> pos(n + 1, n + 1);
+        for (int i = n; i >= 1; i--){
+            nx[i] = pos[a[i]];
+            pos[a[i]] = i;
+        }
+        
+        ufds uf; uf.init(n);
+        
+        vector <int> inv(n + 1, -1);
+        for (int i = 1; i <= n; i++){
+            if (nx[i] <= n){
+                inv[nx[i]] = i;
+            }
+        }
+        
+        int curr = 0;
+        vector <bool> ac(n + 1, false);
+        
+        auto activate = [&](int x){
+            ac[x] = true;
+            curr += 1;
+            
+            if (x > 1 && ac[x - 1]){
+                curr += uf.get_sz(x - 1) * uf.get_sz(x);
+                uf.unite(x - 1, x);
+            }
+            if (x < n && ac[x + 1]){
+                curr += uf.get_sz(x + 1) * uf.get_sz(x);
+                uf.unite(x, x + 1);
+            }
+        };
+        
+        for (int i = 1; i <= n; i++){
+            if (nx[i] > n){
+                activate(i);
+            }
+        }
+        
+        auto f = [&](int x){
+            return x * (x + 1) / 2;  
+        };
+        
+        for (int r = n; r >= 1; r--){
+            int tot = curr;
+            
+            // cout << curr << " " << uf.get_sz(r) << " ";
+            tot -= f(uf.get_sz(r));
+            // cout << tot << " ";
+            tot += f(uf.get_sz(r) - (n - r));
+            // cout << tot << "\n";
+            
+            ans -= tot;
+            
+            if (inv[r] != -1){
+                activate(inv[r]);
+            }
+        }
+        
+        reverse(a.begin() + 1, a.end());
+    }
+    
+    // cout << ans << "\n";
+    
+    int distinct = 0;
+    vector <bool> seen(n + 1, false);
+    
+    auto f = [&](int x){
+        return x * (x + 1) / 2;  
+    };
+    
+    int p = 0;
+    for (int i = 1; i <= n; i++){
+        while (p < n && !seen[a[p + 1]]){
+            p++;
+            seen[a[p]] = true;
+        }
+        
+        // cout << (p - i + 1) << "\n";
+        distinct += (p - i + 1);
+        ans += f(p - i + 1);
+        seen[a[i]] = false;
+    }
+    
+    ans += distinct;
+    
+    cout << ans << "\n";
+}
+
+int32_t main() 
+{
+    auto begin = std::chrono::high_resolution_clock::now();
+    ios_base::sync_with_stdio(0);
+    cin.tie(0);
+    int t = 1;
+    // freopen("in",  "r", stdin);
+    // freopen("out", "w", stdout);
+    
+    cin >> t;
+    for(int i = 1; i <= t; i++) 
+    {
+        //cout << "Case #" << i << ": ";
+        Solve();
+    }
+    auto end = std::chrono::high_resolution_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin);
+    cerr << "Time measured: " << elapsed.count() * 1e-9 << " seconds.\n"; 
+    return 0;
+}
